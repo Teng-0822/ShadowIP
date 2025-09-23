@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shadowrocket Next Proxy</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:20px;}
+    button{padding:12px 18px; font-size:16px; margin:6px;}
+    #status{margin-top:14px; color:#333;}
+  </style>
+</head>
+<body>
+  <h2>Shadowrocket — Next Proxy (Auto Toggle)</h2>
+  <p>Tap <strong>Next Proxy</strong> to disable Shadowrocket, switch profile, then enable again.</p>
+
+  <button id="nextBtn">Next Proxy</button>
+  <button id="resetBtn">Reset Index</button>
+  <div id="status"></div>
+
+<script>
+const totalServers = 80;               
+const STORAGE_KEY = "shadowrocket_index"; 
+
+function getIndex(){
+  const v = localStorage.getItem(STORAGE_KEY);
+  if(!v) return 0;
+  const n = parseInt(v,10);
+  return Number.isNaN(n) ? 0 : n;
+}
+function setIndex(n){ localStorage.setItem(STORAGE_KEY, String(n)); }
+
+function buildUrl(action, name=""){
+  if(action==="config"){
+    return `shadowrocket://config?name=${encodeURIComponent(name)}`;
+  }
+  if(action==="on") return "shadowrocket://on";
+  if(action==="off") return "shadowrocket://off";
+}
+
+function openShadowrocket(url){
+  const iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src=url;
+  document.body.appendChild(iframe);
+  setTimeout(()=>{try{document.body.removeChild(iframe);}catch(_){ }},1500);
+}
+
+function nextShadowrocket(){
+  let oldIndex=getIndex();
+  let newIndex=oldIndex+1;
+  if(newIndex>totalServers) newIndex=1;
+
+  const profile=newIndex.toString();
+  updateStatus(`Switching to server ${newIndex}/${totalServers}...`);
+
+  // Step 1: Turn off
+  openShadowrocket(buildUrl("off"));
+
+  // Step 2: Wait, then switch profile
+  setTimeout(()=>openShadowrocket(buildUrl("config",profile)),1500);
+
+  // Step 3: Wait more, then turn on
+  setTimeout(()=>openShadowrocket(buildUrl("on")),3000);
+
+  setIndex(newIndex);
+}
+
+function resetIndex(){
+  localStorage.removeItem(STORAGE_KEY);
+  updateStatus("Index reset. Next run will pick server 1.");
+}
+
+function updateStatus(msg){
+  document.getElementById('status').textContent=msg;
+}
+
+document.getElementById('nextBtn').addEventListener('click',nextShadowrocket);
+document.getElementById('resetBtn').addEventListener('click',resetIndex);
+
+(function init(){
+  const idx=getIndex();
+  const next=idx===0?1:((idx%totalServers)+1);
+  updateStatus(`Ready. Next: server ${next}/${totalServers}`);
+})();
+</script>
+</body>
+</html>
