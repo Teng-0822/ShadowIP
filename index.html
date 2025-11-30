@@ -1,181 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Run AutoTouch Script — iPhone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Show Local IP</title>
 <style>
-  body{font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial; background:#0b0b0c; color:#fff; padding:20px}
-  .card{background:#0f1720;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.6)}
-  input, button{font-size:16px;padding:10px;border-radius:8px;border:1px solid #223; outline:none}
-  input{width:100%; box-sizing:border-box; margin-bottom:10px; background:#071020; color:#fff}
-  .row{display:flex; gap:10px; margin-bottom:10px}
-  button{background:#0f62fe;color:white;border:none; cursor:pointer}
-  button.secondary{background:#263143}
-  pre{background:#071020;padding:12px;border-radius:8px; white-space:pre-wrap; word-break:break-word}
-  .warn{color:#ffcc00}
+button {
+  width: 90%;
+  padding: 18px;
+  font-size: 20px;
+  border-radius: 12px;
+  margin: 20px auto;
+  display: block;
+  background:#007aff;
+  color:#fff;
+  border:none;
+}
+#ip {
+  font-size: 22px;
+  text-align: center;
+  margin-top: 20px;
+}
 </style>
 </head>
+
 <body>
 
-  <h2>Run `/test.lua` on your iPhone</h2>
-  <div class="card">
-    <label>Target IP (phone LAN IP). If page runs on same phone, try <code>127.0.0.1</code>:</label>
-    <input id="ipInput" placeholder="e.g. 192.168.1.132 or 127.0.0.1">
+<h2 style="text-align:center;">My Local IP</h2>
 
-    <div class="row">
-      <button id="detectBtn">Detect IP (WebRTC)</button>
-      <button id="useLocalBtn" class="secondary">Use 127.0.0.1</button>
-      <button id="pasteHostBtn" class="secondary">Use window.location.hostname</button>
-    </div>
+<div id="ip">Press the button to detect IP</div>
 
-    <div class="row">
-      <button id="runBtn" style="flex:1">▶ Run /test.lua</button>
-      <button id="stopBtn" class="secondary">■ Stop (if supported)</button>
-    </div>
-
-    <p class="warn" id="mixedWarning" style="display:none"></p>
-
-    <label>Result / logs:</label>
-    <pre id="out">Ready.</pre>
-  </div>
+<button onclick="detectIP()">Get My IP</button>
 
 <script>
-/* Helper: update output */
-const out = txt => {
-  document.getElementById('out').textContent = txt;
-};
+function detectIP() {
+    let ipText = document.getElementById("ip");
 
-/* Fill with saved IP if any */
-const ipInput = document.getElementById('ipInput');
-ipInput.value = localStorage.getItem('autotouch_ip') || '';
+    let pc = new RTCPeerConnection({iceServers: []});
+    pc.createDataChannel("");
+    pc.createOffer()
+      .then(offer => pc.setLocalDescription(offer));
 
-/* Buttons */
-document.getElementById('useLocalBtn').onclick = () => {
-  ipInput.value = '127.0.0.1';
-  localStorage.setItem('autotouch_ip', ipInput.value);
-  out('Set IP to 127.0.0.1 (local).');
-};
+    pc.onicecandidate = (event) => {
+        if (!event || !event.candidate) return;
 
-document.getElementById('pasteHostBtn').onclick = () => {
-  const host = window.location.hostname || '';
-  if (!host) {
-    out('window.location.hostname is empty (file:/// or similar). Use manual IP or 127.0.0.1');
-    return;
-  }
-  ipInput.value = host;
-  localStorage.setItem('autotouch_ip', ipInput.value);
-  out('Set IP to ' + host);
-};
+        let match = event.candidate.candidate.match(
+            /([0-9]{1,3}(\.[0-9]{1,3}){3})/
+        );
 
-/* WebRTC local IP detection (may be blocked on some iOS/Safari versions) */
-document.getElementById('detectBtn').onclick = () => {
-  out('Detecting local IP via WebRTC (may be blocked by Safari)...');
-  detectLocalIP().then(ip=>{
-    if (ip) {
-      ipInput.value = ip;
-      localStorage.setItem('autotouch_ip', ip);
-      out('Detected local IP: ' + ip);
-    } else {
-      out('Could not detect IP (WebRTC blocked). Type IP manually from Settings → Wi-Fi → (i).');
-    }
-  }).catch(err=>{
-    out('Detect error: ' + err);
-  });
-};
-
-async function detectLocalIP(){
-  return new Promise((resolve, reject) => {
-    try {
-      const pc = new RTCPeerConnection({iceServers:[]});
-      pc.createDataChannel('');
-      pc.onicecandidate = ev => {
-        if (!ev || !ev.candidate) {
-          // finished gathering
-          pc.close();
-          resolve(null);
-          return;
+        if (match) {
+            let ip = match[1];
+            ipText.innerText = "Local IP: " + ip;
+            pc.close();
         }
-        const cand = ev.candidate.candidate;
-        const ipMatch = cand.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/);
-        if (ipMatch) {
-          pc.close();
-          resolve(ipMatch[1]);
-        }
-      };
-      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(e=>{
-        pc.close();
-        reject(e);
-      });
-      setTimeout(()=>{ try{pc.close()}catch(e){}; resolve(null); }, 4000);
-    } catch(e) { reject(e); }
-  });
+    };
 }
-
-/* Build URL helper */
-function buildUrl(ip){
-  if(!ip) throw 'IP missing';
-  // ensure no protocol or port in user input
-  ip = ip.trim();
-  // If user pasted host with https://, strip it
-  ip = ip.replace(/^https?:\/\//, '').replace(/\/.*$/,'');
-  return `http://${ip}:8080/control/start_playing?path=/test.lua`;
-}
-
-/* Run button: try normal fetch; on failure try no-cors fire-and-forget */
-document.getElementById('runBtn').onclick = async () => {
-  const ip = ipInput.value.trim();
-  if (!ip) { out('Please enter your phone IP (e.g. 192.168.1.132 or 127.0.0.1).'); return; }
-  localStorage.setItem('autotouch_ip', ip);
-
-  const url = buildUrl(ip);
-  out('Running: ' + url + '\n\nStatus: Sending request…');
-
-  /* Mixed-content check */
-  const mixedWarning = document.getElementById('mixedWarning');
-  if (location.protocol === 'https:' && url.startsWith('http:')) {
-    mixedWarning.style.display = 'block';
-    mixedWarning.textContent = '⚠️ This page is loaded over HTTPS. Browsers may block HTTP requests to local devices (mixed-content). If the request fails, try opening this file locally (or use 127.0.0.1 on the phone).';
-  } else {
-    mixedWarning.style.display = 'none';
-  }
-
-  // Attempt regular fetch first (to get JSON)
-  try {
-    const resp = await fetch(url, { method: 'GET', credentials: 'omit' });
-    // If server didn't include CORS headers, this may throw earlier; but if not, try to parse
-    let text;
-    try { text = await resp.text(); } catch(e) { text = '[response unreadable]'; }
-    out('HTTP status: ' + resp.status + '\n\nResponse:\n' + text);
-    return;
-  } catch (err) {
-    out('Normal fetch failed:\n' + err + '\n\nTrying fallback (no-cors) to at least trigger the server...');
-    // fallback: send a no-cors request (fire-and-forget). You WILL NOT be able to read response.
-    try {
-      await fetch(url, { method:'GET', mode:'no-cors' });
-      out('Fallback sent (no-cors). The server should have received it — but response is not available due to browser restrictions.');
-      return;
-    } catch (err2) {
-      out('Fallback also failed:\n' + err2 + '\n\nPossible reasons:\n- Mixed-content blocked (page is HTTPS, target is HTTP).\n- Server not reachable (wrong IP/port).\n- CORS policies prevented reading response (but no-cors should still send).\n\nCheck Settings → Wi-Fi → (i) for your phone IP and ensure AutoTouch server is running on port 8080.');
-      return;
-    }
-  }
-};
-
-/* Optional Stop button (if server supports) */
-document.getElementById('stopBtn').onclick = async () => {
-  const ip = ipInput.value.trim();
-  if (!ip) { out('Please enter your phone IP first.'); return; }
-  const url = `http://${ip}:8080/control/stop_playing`; // adjust if your server uses different stop endpoint
-  out('Sending stop to: ' + url);
-  try {
-    const r = await fetch(url, { method:'GET' });
-    const t = await r.text();
-    out('Stop response: ' + r.status + '\n\n' + t);
-  } catch (e) {
-    out('Stop failed: ' + e + '\n\nIf your server has a different stop endpoint, update the code.');
-  }
-};
-
 </script>
+
 </body>
 </html>
