@@ -17,8 +17,7 @@
 
 <script>
 function runScript() {
-    const ip = window.location.hostname;  // auto-detect IP
-    const url = `http://${ip}:8080/control/start_playing?path=/test.lua`;
+     const url = "http://127.0.0.1:8080/control/start_playing?path=/test.lua";
 
     fetch(url)
         .then(res => res.json())
