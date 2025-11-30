@@ -1,65 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Show Local IP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detect Local IP</title>
 <style>
+body { font-family: Arial; padding: 20px; }
 button {
-  width: 90%;
+  width: 100%;
   padding: 18px;
-  font-size: 20px;
-  border-radius: 12px;
-  margin: 20px auto;
-  display: block;
-  background:#007aff;
-  color:#fff;
-  border:none;
+  font-size: 19px;
+  border-radius: 10px;
+  background: #007aff;
+  color: white;
+  border: none;
 }
 #ip {
+  margin-top: 20px;
   font-size: 22px;
   text-align: center;
-  margin-top: 20px;
 }
 </style>
 </head>
-
 <body>
 
 <h2 style="text-align:center;">My Local IP</h2>
 
-<div id="ip">Press the button to detect IP</div>
+<div id="ip">Press the button to get your local IP</div>
 
-<button onclick="detectIP()">Get My IP</button>
+<button onclick="getIP()">Get My Local IP</button>
 
 <script>
-function detectIP() {
-    let ipText = document.getElementById("ip");
-    ipText.innerText = "Detecting… ⏳";
+function getIP() {
+    const ipBox = document.getElementById("ip");
+    ipBox.innerHTML = "Detecting your IP… ⏳";
 
-    let pc = new RTCPeerConnection({iceServers: []});
+    const pc = new RTCPeerConnection({iceServers: []});
     pc.createDataChannel("");
-
-    pc.createOffer()
-        .then(offer => pc.setLocalDescription(offer));
+    pc.createOffer().then(o => pc.setLocalDescription(o));
 
     pc.onicecandidate = (event) => {
         if (!event || !event.candidate) return;
 
-        let match = event.candidate.candidate.match(
-            /([0-9]{1,3}(\.[0-9]{1,3}){3})/
-        );
+        const cand = event.candidate.candidate;
+        const match = cand.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/);
 
         if (match) {
-            let ip = match[1];
-            ipText.innerText = "Local IP: " + ip;
+            const ip = match[1];
+            ipBox.innerHTML = "Your Local IP: <b>" + ip + "</b>";
             pc.close();
         }
     };
 
-    // 5-second fallback
+    // Fail-safe timeout
     setTimeout(() => {
-        if (ipText.innerText === "Detecting… ⏳") {
-            ipText.innerText = "Failed to detect IP.";
+        if (ipBox.innerHTML.includes("Detecting")) {
+            ipBox.innerHTML = "❌ Failed to get IP (iOS blocked WebRTC leak)";
         }
     }, 5000);
 }
