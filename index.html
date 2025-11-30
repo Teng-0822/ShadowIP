@@ -34,11 +34,13 @@ button {
 <script>
 function detectIP() {
     let ipText = document.getElementById("ip");
+    ipText.innerText = "Detecting… ⏳";
 
     let pc = new RTCPeerConnection({iceServers: []});
     pc.createDataChannel("");
+
     pc.createOffer()
-      .then(offer => pc.setLocalDescription(offer));
+        .then(offer => pc.setLocalDescription(offer));
 
     pc.onicecandidate = (event) => {
         if (!event || !event.candidate) return;
@@ -53,6 +55,13 @@ function detectIP() {
             pc.close();
         }
     };
+
+    // 5-second fallback
+    setTimeout(() => {
+        if (ipText.innerText === "Detecting… ⏳") {
+            ipText.innerText = "Failed to detect IP.";
+        }
+    }, 5000);
 }
 </script>
 
